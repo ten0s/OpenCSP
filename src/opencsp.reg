@@ -1,0 +1,9 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Cryptography\Defaults\Provider\Open CSP]
+"Image Path"="opencsp.dll.so"
+"Type"=dword:0000014d
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Cryptography\Defaults\Provider Types\Type 333]
+"Name"="Open CSP"
+"TypeName"="Open CSP"

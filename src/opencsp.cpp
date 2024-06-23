@@ -4,10 +4,17 @@
 
 #include <windows.h>
 #include <wincrypt.h>
+
+#include <openssl/ssl.h> // SSL_library_init
+#include <openssl/evp.h>
 #include <openssl/rand.h>
+
+#include "enumalgs.hpp"
+#include "hash.hpp"
 
 HINSTANCE g_hModule = NULL;
 
+extern "C"
 BOOL WINAPI
 DllMain(HINSTANCE hinstDLL,
         DWORD fdwReason,
@@ -17,6 +24,8 @@ DllMain(HINSTANCE hinstDLL,
     {
         DisableThreadLibraryCalls(hinstDLL);
         g_hModule = hinstDLL;
+
+        SSL_library_init();
     }
 
     return TRUE;
@@ -75,6 +84,7 @@ typedef struct _VTableProvStrucW {
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPAcquireContext(OUT HCRYPTPROV *phProv,
                  IN  LPCSTR szContainer,
@@ -100,6 +110,7 @@ CPAcquireContext(OUT HCRYPTPROV *phProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPReleaseContext(IN  HCRYPTPROV hProv,
                  IN  DWORD dwFlags)
@@ -124,6 +135,7 @@ CPReleaseContext(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPGenKey(IN  HCRYPTPROV hProv,
          IN  ALG_ID Algid,
@@ -152,6 +164,7 @@ CPGenKey(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPDeriveKey(IN  HCRYPTPROV hProv,
             IN  ALG_ID Algid,
@@ -179,6 +192,7 @@ CPDeriveKey(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPDestroyKey(IN  HCRYPTPROV hProv,
              IN  HCRYPTKEY hKey)
@@ -204,6 +218,7 @@ CPDestroyKey(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPSetKeyParam(IN  HCRYPTPROV hProv,
               IN  HCRYPTKEY hKey,
@@ -233,6 +248,7 @@ CPSetKeyParam(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPGetKeyParam(IN  HCRYPTPROV hProv,
               IN  HCRYPTKEY hKey,
@@ -241,7 +257,7 @@ CPGetKeyParam(IN  HCRYPTPROV hProv,
               IN OUT LPDWORD pcbDataLen,
               IN  DWORD dwFlags)
 {
-    *pcbDataLen = 0;
+    //*pcbDataLen = 0;
     return TRUE;
 }
 
@@ -262,6 +278,7 @@ CPGetKeyParam(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPSetProvParam(IN  HCRYPTPROV hProv,
                IN  DWORD dwParam,
@@ -289,6 +306,7 @@ CPSetProvParam(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPGetProvParam(IN  HCRYPTPROV hProv,
                IN  DWORD dwParam,
@@ -296,7 +314,70 @@ CPGetProvParam(IN  HCRYPTPROV hProv,
                IN OUT LPDWORD pcbDataLen,
                IN  DWORD dwFlags)
 {
-    *pcbDataLen = 0;
+    switch (dwParam)
+    {
+    case PP_NAME:
+        break;
+
+    case PP_PROVTYPE:
+        break;
+
+    // default key container if NULL is given in AcquireContext,
+    // its name otherwise
+    case PP_CONTAINER:
+        break;
+
+    case PP_ENUMALGS: {
+        if (!pbData) {
+            *pcbDataLen = sizeof(PROV_ENUMALGS);
+            return TRUE;
+        }
+
+        if (*pcbDataLen < sizeof(PROV_ENUMALGS)) {
+            SetLastError(ERROR_MORE_DATA);
+            return FALSE;
+        }
+
+        dwFlags == CRYPT_FIRST ? EnumAlgs::first() : EnumAlgs::next();
+        if (EnumAlgs::read(reinterpret_cast<PROV_ENUMALGS&>(*pbData))) {
+            *pcbDataLen = sizeof(PROV_ENUMALGS);
+            return TRUE;
+        }
+
+        SetLastError(ERROR_NO_MORE_ITEMS);
+        return FALSE;
+    }
+
+    case PP_ENUMALGS_EX: {
+        if (!pbData) {
+            *pcbDataLen = sizeof(PROV_ENUMALGS_EX);
+            return TRUE;
+        }
+
+        if (*pcbDataLen < sizeof(PROV_ENUMALGS_EX)) {
+            SetLastError(ERROR_MORE_DATA);
+            return FALSE;
+        }
+
+        dwFlags == CRYPT_FIRST ? EnumAlgs::first() : EnumAlgs::next();
+        if (EnumAlgs::read(reinterpret_cast<PROV_ENUMALGS_EX&>(*pbData))) {
+            *pcbDataLen = sizeof(PROV_ENUMALGS_EX);
+            return TRUE;
+        }
+
+        SetLastError(ERROR_NO_MORE_ITEMS);
+        return FALSE;
+    }
+
+    case PP_ENUMCONTAINERS:
+        SetLastError(ERROR_NO_MORE_ITEMS);
+        return FALSE;
+
+    case PP_KEYSPEC:
+        return FALSE;
+
+    }
+
     return TRUE;
 }
 
@@ -318,6 +399,7 @@ CPGetProvParam(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPSetHashParam(IN  HCRYPTPROV hProv,
                IN  HCRYPTHASH hHash,
@@ -325,7 +407,8 @@ CPSetHashParam(IN  HCRYPTPROV hProv,
                IN  CONST BYTE *pbData,
                IN  DWORD dwFlags)
 {
-    return TRUE;
+    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return FALSE;
 }
 
 
@@ -347,6 +430,7 @@ CPSetHashParam(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPGetHashParam(IN  HCRYPTPROV hProv,
                IN  HCRYPTHASH hHash,
@@ -355,7 +439,30 @@ CPGetHashParam(IN  HCRYPTPROV hProv,
                IN OUT LPDWORD pcbDataLen,
                IN  DWORD dwFlags)
 {
-    *pcbDataLen = 0;
+    //*pcbDataLen = 0;
+
+    switch (dwParam)
+    {
+    case HP_ALGID:
+        // TODO
+        break;
+
+    case HP_HASHSIZE:
+        *pbData = 16;
+        *pcbDataLen = 4;
+        break;
+
+    case HP_HASHVAL: {
+        Hash *hash = reinterpret_cast<Hash*>(hHash);
+        hash->done(pbData, *pcbDataLen);
+        break;
+    }
+
+    default:
+        SetLastError(NTE_BAD_TYPE);
+        return FALSE;
+    }
+
     return TRUE;
 }
 
@@ -380,6 +487,7 @@ CPGetHashParam(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPExportKey(IN  HCRYPTPROV hProv,
             IN  HCRYPTKEY hKey,
@@ -389,7 +497,7 @@ CPExportKey(IN  HCRYPTPROV hProv,
             OUT LPBYTE pbData,
             IN OUT LPDWORD pcbDataLen)
 {
-    *pcbDataLen = 0;
+    //*pcbDataLen = 0;
     return TRUE;
 }
 
@@ -414,6 +522,7 @@ CPExportKey(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPImportKey(IN  HCRYPTPROV hProv,
             IN  CONST BYTE *pbData,
@@ -449,6 +558,7 @@ CPImportKey(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPEncrypt(IN  HCRYPTPROV hProv,
           IN  HCRYPTKEY hKey,
@@ -459,7 +569,7 @@ CPEncrypt(IN  HCRYPTPROV hProv,
           IN OUT LPDWORD pcbDataLen,
           IN  DWORD cbBufLen)
 {
-    *pcbDataLen = 0;
+    //*pcbDataLen = 0;
     return TRUE;
 }
 
@@ -485,6 +595,7 @@ CPEncrypt(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPDecrypt(IN  HCRYPTPROV hProv,
           IN  HCRYPTKEY hKey,
@@ -494,7 +605,7 @@ CPDecrypt(IN  HCRYPTPROV hProv,
           IN OUT LPBYTE pbData,
           IN OUT LPDWORD pcbDataLen)
 {
-    *pcbDataLen = 0;
+    //*pcbDataLen = 0;
     return TRUE;
 }
 
@@ -503,11 +614,11 @@ CPDecrypt(IN  HCRYPTPROV hProv,
  -  CPCreateHash
  -
  *  Purpose:
- *                initate the hashing of a stream of data
+ *                Initate the hashing of a stream of data
  *
  *
  *  Parameters:
- *               IN  hUID    -  Handle to the user identifcation
+ *               IN  hProv   -  Handle to the CSP user
  *               IN  Algid   -  Algorithm identifier of the hash algorithm
  *                              to be used
  *               IN  hKey   -   Optional handle to a key
@@ -517,6 +628,7 @@ CPDecrypt(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPCreateHash(IN  HCRYPTPROV hProv,
              IN  ALG_ID Algid,
@@ -524,7 +636,13 @@ CPCreateHash(IN  HCRYPTPROV hProv,
              IN  DWORD dwFlags,
              OUT HCRYPTHASH *phHash)
 {
-    *phHash = (HCRYPTHASH)NULL;  // Replace NULL with your own structure.
+    Hash *hash = Hash::from_algid(Algid);
+    if (!hash) {
+        SetLastError(NTE_BAD_ALGID);
+        return FALSE;
+    }
+
+    *phHash = (HCRYPTHASH)hash;
     return TRUE;
 }
 
@@ -546,6 +664,7 @@ CPCreateHash(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPHashData(IN  HCRYPTPROV hProv,
            IN  HCRYPTHASH hHash,
@@ -553,6 +672,8 @@ CPHashData(IN  HCRYPTPROV hProv,
            IN  DWORD cbDataLen,
            IN  DWORD dwFlags)
 {
+    Hash *hash = reinterpret_cast<Hash*>(hHash);
+    hash->update(pbData, cbDataLen);
     return TRUE;
 }
 
@@ -575,6 +696,7 @@ CPHashData(IN  HCRYPTPROV hProv,
  *               CRYPT_SUCCEED
  */
 
+extern "C"
 BOOL WINAPI
 CPHashSessionKey(IN  HCRYPTPROV hProv,
                  IN  HCRYPTHASH hHash,
@@ -604,6 +726,7 @@ CPHashSessionKey(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPSignHash(IN  HCRYPTPROV hProv,
            IN  HCRYPTHASH hHash,
@@ -613,7 +736,7 @@ CPSignHash(IN  HCRYPTPROV hProv,
            OUT LPBYTE pbSignature,
            IN OUT LPDWORD pcbSigLen)
 {
-    *pcbSigLen = 0;
+    //*pcbSigLen = 0;
     return TRUE;
 }
 
@@ -632,11 +755,15 @@ CPSignHash(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPDestroyHash(
     IN  HCRYPTPROV hProv,
     IN  HCRYPTHASH hHash)
 {
+    Hash *hash = reinterpret_cast<Hash*>(hHash);
+    delete hash;
+    hash = nullptr;
     return TRUE;
 }
 
@@ -661,6 +788,7 @@ CPDestroyHash(
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPVerifySignature(IN  HCRYPTPROV hProv,
                   IN  HCRYPTHASH hHash,
@@ -690,6 +818,7 @@ CPVerifySignature(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPGenRandom(IN  HCRYPTPROV hProv,
             IN  DWORD cbLen,
@@ -715,12 +844,13 @@ CPGenRandom(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPGetUserKey(IN  HCRYPTPROV hProv,
              IN  DWORD dwKeySpec,
              OUT HCRYPTKEY *phUserKey)
 {
-    *phUserKey = 0;
+    //*phUserKey = 0;
     return TRUE;
 }
 
@@ -743,6 +873,7 @@ CPGetUserKey(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPDuplicateHash(IN  HCRYPTPROV hProv,
                 IN  HCRYPTHASH hHash,
@@ -773,6 +904,7 @@ CPDuplicateHash(IN  HCRYPTPROV hProv,
  *  Returns:
  */
 
+extern "C"
 BOOL WINAPI
 CPDuplicateKey(IN  HCRYPTPROV hProv,
                IN  HCRYPTKEY hKey,
